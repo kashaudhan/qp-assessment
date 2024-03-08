@@ -17,7 +17,8 @@ router.post("/user/place-order", authenticateToken, user.placeOrder);
 
 // admin routes
 router.post("/admin/create", authenticateToken,  admin.createAdmin);
-router.post("/admin/add-item", authenticateToken, admin.insertItems);
+router.post("/admin/add-item", authenticateToken, admin.insertItem);
+router.post("/admin/add-multiple-items", authenticateToken, admin.bulkInsertItems);
 router.post("/admin/update-item/:id", authenticateToken, admin.updateItem);
 router.post("/admin/delete-item/:id", authenticateToken, admin.deleteItem);
 

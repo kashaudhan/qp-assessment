@@ -14,7 +14,7 @@ export const createAdmin = async (req: Request, res: Response) => {
 
   const { role } = (req as any).user;
 
-  if(role !== 'ADMIN') {
+  if (role !== "ADMIN") {
     return res.status(401).end();
   }
 
@@ -22,9 +22,12 @@ export const createAdmin = async (req: Request, res: Response) => {
     !validator.emailValidation(email) ||
     !validator.passwordValidation(password)
   ) {
-    return res.status(400).json({
-      error: "Email or password is invalid",
-    });
+    return res
+      .status(400)
+      .json({
+        error: "Email or password is invalid",
+      })
+      .end();
   }
 
   const salt = bcrypt.genSaltSync(Number(process.env.ENCRYPTION_SALT));
@@ -40,19 +43,22 @@ export const createAdmin = async (req: Request, res: Response) => {
       [email, passwordHash]
     );
 
-    return res.status(200).json({
-      message: "Admin created successfully!",
-    });
+    return res
+      .status(200)
+      .json({
+        message: "Admin created successfully!",
+      })
+      .end();
   } catch (error) {
     console.error(error);
-    return res.status(500);
+    return res.status(500).end();
   }
 };
 
-export const insertItems = (req: Request, res: Response) => {
+export const insertItem = async (req: Request, res: Response) => {
   const { role } = (req as any).user;
 
-  if(role !== 'ADMIN') {
+  if (role !== "ADMIN") {
     return res.status(401).end();
   }
   if (
@@ -61,15 +67,18 @@ export const insertItems = (req: Request, res: Response) => {
     !req.body.count ||
     !req.body.category
   ) {
-    return res.status(400).json({
-      message: "Please provide all required item detail",
-    });
+    return res
+      .status(400)
+      .json({
+        message: "Please provide all required item detail",
+      })
+      .end();
   }
 
   const { name, price, count, category }: types.IItem = req.body;
 
   try {
-    const result = db.query(
+    await db.query(
       `
       --sql
       INSERT INTO items
@@ -96,11 +105,57 @@ export const insertItems = (req: Request, res: Response) => {
   }
 };
 
-export const updateItem = async (req: Request, res: Response) => {
-
+export const bulkInsertItems = async (req: Request, res: Response) => {
   const { role } = (req as any).user;
 
-  if(role !== 'ADMIN') {
+  if (role !== "ADMIN") {
+    return res.status(401).end();
+  }
+
+  const data = req.body;
+
+  if (!Array.isArray(data)) {
+    return res
+      .status(422)
+      .json({
+        error: "Invalid data format",
+      })
+      .end();
+  }
+
+  try {
+    const columnSet = new pgp.helpers.ColumnSet(
+      ["name", "price", "count", "category"],
+      {
+        table: "items",
+      }
+    );
+
+    const insertItems = pgp.helpers.insert(data, columnSet);
+
+    await db.query(insertItems);
+
+    return res
+      .status(200)
+      .json({
+        message: "Items inserted successfully",
+      })
+      .end();
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({
+        error: "Something went wrong",
+      })
+      .end();
+  }
+};
+
+export const updateItem = async (req: Request, res: Response) => {
+  const { role } = (req as any).user;
+
+  if (role !== "ADMIN") {
     return res.status(401).end();
   }
 
@@ -128,9 +183,12 @@ export const updateItem = async (req: Request, res: Response) => {
       throw new Error("Something went wrong");
     }
 
-    return res.status(200).json({
-      message: "Item updated successfully!",
-    });
+    return res
+      .status(200)
+      .json({
+        message: "Item updated successfully!",
+      })
+      .end();
   } catch (error) {
     console.error(error);
     return res.status(500).end();
@@ -138,13 +196,12 @@ export const updateItem = async (req: Request, res: Response) => {
 };
 
 export const deleteItem = async (req: Request, res: Response) => {
-
   const { role } = (req as any).user;
 
-  if(role !== 'ADMIN') {
+  if (role !== "ADMIN") {
     return res.status(401).end();
   }
-  
+
   const { id } = req.params;
 
   try {
@@ -159,9 +216,12 @@ export const deleteItem = async (req: Request, res: Response) => {
     `,
       [id]
     );
-    return res.status(200).json({
-      message: "Item deleted successfully",
-    });
+    return res
+      .status(200)
+      .json({
+        message: "Item deleted successfully",
+      })
+      .end();
   } catch (error) {
     console.error(error);
     res.status(500).end();

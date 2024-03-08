@@ -19,7 +19,7 @@ export const signUp = async (req: Request, res: Response) => {
   ) {
     return res.status(400).json({
       error: "Email or password is invalid",
-    });
+    }).end();
   }
 
   const salt = bcrypt.genSaltSync(Number(process.env.ENCRYPTION_SALT));
@@ -37,10 +37,10 @@ export const signUp = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: "User created successfully!",
-    });
+    }).end();
   } catch (error) {
     console.error(error);
-    return res.status(500);
+    return res.status(500).end();
   }
 };
 
@@ -121,7 +121,7 @@ export const createUser = async (req: Request, res: Response) => {
   ) {
     return res.status(400).json({
       error: "Email or password is invalid",
-    });
+    }).end();
   }
 
   const salt = bcrypt.genSaltSync(Number(process.env.ENCRYPTION_SALT));
@@ -139,10 +139,10 @@ export const createUser = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: "User created successfully!",
-    });
+    }).end();
   } catch (error) {
     console.error(error);
-    return res.status(500);
+    return res.status(500).end();
   }
 };
 
