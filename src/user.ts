@@ -17,9 +17,12 @@ export const signUp = async (req: Request, res: Response) => {
     !validator.emailValidation(email) ||
     !validator.passwordValidation(password)
   ) {
-    return res.status(400).json({
-      error: "Email or password is invalid",
-    }).end();
+    return res
+      .status(400)
+      .json({
+        error: "Email or password is invalid",
+      })
+      .end();
   }
 
   const salt = bcrypt.genSaltSync(Number(process.env.ENCRYPTION_SALT));
@@ -35,9 +38,12 @@ export const signUp = async (req: Request, res: Response) => {
       [email, passwordHash]
     );
 
-    return res.status(200).json({
-      message: "User created successfully!",
-    }).end();
+    return res
+      .status(200)
+      .json({
+        message: "User created successfully!",
+      })
+      .end();
   } catch (error) {
     console.error(error);
     return res.status(500).end();
@@ -98,7 +104,10 @@ export const login = async (req: Request, res: Response) => {
     return res
       .status(200)
       .json({
-        data: token,
+        id,
+        email,
+        role,
+        token,
       })
       .end();
   } catch (error) {
@@ -119,9 +128,12 @@ export const createUser = async (req: Request, res: Response) => {
     !validator.emailValidation(email) ||
     !validator.passwordValidation(password)
   ) {
-    return res.status(400).json({
-      error: "Email or password is invalid",
-    }).end();
+    return res
+      .status(400)
+      .json({
+        error: "Email or password is invalid",
+      })
+      .end();
   }
 
   const salt = bcrypt.genSaltSync(Number(process.env.ENCRYPTION_SALT));
@@ -137,9 +149,12 @@ export const createUser = async (req: Request, res: Response) => {
       [email, passwordHash]
     );
 
-    return res.status(200).json({
-      message: "User created successfully!",
-    }).end();
+    return res
+      .status(200)
+      .json({
+        message: "User created successfully!",
+      })
+      .end();
   } catch (error) {
     console.error(error);
     return res.status(500).end();
@@ -164,7 +179,7 @@ export const getItem = async (req: Request, res: Response) => {
   }
 };
 export const addToCart = async (req: Request, res: Response) => {
-  const { itemId } = req.params;
+  const { itemId, count } = req.body;
   const { id: userId } = (req as any).user;
 
   try {
@@ -172,11 +187,11 @@ export const addToCart = async (req: Request, res: Response) => {
       `
       --sql
       INSERT INTO cart
-        (item_id, user_id)
+        (item_id, user_id, count)
       VALUES
-        ($1, $2)
+        ($1, $2, $3)
     `,
-      [itemId, userId]
+      [itemId, userId, count]
     );
     return res.status(200).json({
       message: "Item added to cart",
@@ -219,8 +234,19 @@ export const getCart = async (req: Request, res: Response) => {
       [itemIds]
     );
 
+    const finalData = cart.rows.map(item => {
+      const data = result.rows.find(i => i.id === item.item_id);
+      return {
+        id: data.id,
+        name: data.name,
+        price: data.price,
+        count: item.count,
+        category: data.category
+      }
+    })
+
     return res.status(200).json({
-      data: result.rows,
+      data: finalData,
     });
   } catch (error) {
     console.error(error);
@@ -237,6 +263,7 @@ export const placeOrder = async (req: Request, res: Response) => {
    * 3. Insert a row with user_id & total amount
    * 4. Insert cart items into order_item with order_id
    * 5. Delete cart items
+   * 6. Reduce item count
    */
 
   const { id: userId } = (req as any).user;
@@ -278,10 +305,12 @@ export const placeOrder = async (req: Request, res: Response) => {
       throw new Error("Items not found");
     }
 
-    const itemTotal: number = itemDetail.rows.reduce(
-      (total, item) => total + Number(item.price),
-      0
-    );
+    let itemTotal = 0;
+
+    itemDetail.rows.forEach((item) => {
+      const data = cart.rows.find((i) => i.item_id === item.id);
+      itemTotal += Number(data.count) * Number(item.price);
+    });
 
     const order = await db.query(
       `
@@ -301,15 +330,17 @@ export const placeOrder = async (req: Request, res: Response) => {
 
     // Bulk insert items in order_item
     const orderItemRows = itemDetail.rows.map((item) => {
+      const cartCount = cart.rows.find(i => i.item_id === item.id);
       return {
         order_id: order.rows[0].id,
         item_id: item.id,
         item_name: item.name,
         item_price: item.price,
+        count: cartCount.count,
       };
     });
     const columnSet = new pgp.helpers.ColumnSet(
-      ["order_id", "item_id", "item_name", "item_price"],
+      ["order_id", "item_id", "item_name", "item_price", "count"],
       {
         table: "order_item",
       }
@@ -321,15 +352,44 @@ export const placeOrder = async (req: Request, res: Response) => {
 
     await db.query(`DELETE FROM cart WHERE user_id = $1`, [userId]);
 
+    const updateItemsCountColumn = new pgp.helpers.ColumnSet(["?id", "count"], {
+      table: "items",
+    });
+
+    const updateCountTo: object[] = [];
+
+    itemDetail.rows.forEach((item) => {
+      const data = cart.rows.find((i) => i.item_id === item.id);
+      updateCountTo.push({
+        id: item.id,
+        count: Math.max(item.count - data.count, 0),
+      });
+    });
+
+    const updateItems = pgp.helpers.update(
+      updateCountTo,
+      updateItemsCountColumn,
+      "items",
+      { tableAlias: "t", valueAlias: "v" }
+    ) + "WHERE t.id = v.id";
+
+    await db.query(updateItems);
+
     client.query("COMMIT");
-    res.status(200).json({
-      message: "Order placed successfully"
-    }).end();
+    res
+      .status(200)
+      .json({
+        message: "Order placed successfully",
+      })
+      .end();
   } catch (error) {
     console.error(error);
     client.query("ROLLBACK");
-    res.status(500).json({
-      error: "Something went wrong",
-    }).end();
+    res
+      .status(500)
+      .json({
+        error: "Something went wrong",
+      })
+      .end();
   }
 };

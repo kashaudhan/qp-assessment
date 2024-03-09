@@ -161,7 +161,7 @@ export const updateItem = async (req: Request, res: Response) => {
 
   const { id } = req.params;
 
-  const { name, price, count, category } = req.body as types.IItem;
+  const { name, price, count, category, is_deleted } = req.body as types.IItem;
 
   try {
     const result = await db.query(
@@ -172,11 +172,12 @@ export const updateItem = async (req: Request, res: Response) => {
         name = $2,
         price = $3,
         count = $4,
-        category = $5
+        category = $5,
+        is_deleted = $6
       WHERE
         id = $1
     `,
-      [id, name, price, count, category]
+      [id, name, price, count, category, is_deleted]
     );
 
     if (!result) {
